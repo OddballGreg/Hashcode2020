@@ -31,3 +31,4 @@ end
 
 # output results
 
+file = File.open("#{Time.now.strftime('%I_%M_%S')}_#{filename.split('.').first}_results.txt", 'w')
