@@ -5,22 +5,21 @@ end
 
 class Library
   @id : Int64
-  @weight : Int64 | Nil
-  @max_possible_score : Int64 | Nil
+  @weight : Int64
+  @max_possible_score : Int64
   @book_count : Int64
   @time_to_sign_up : Int64
   @books_scanned_per_day : Int64
-  @max_scannable_books : Int64 | Nil
-  @books : Array(Int64) | Nil
+  @max_scannable_books : Int64
+  @books : Array(Int64)
 
   getter :id, :weight, :book_count, :time_to_sign_up, :books_scanned_per_day, :books, :max_scannable_books
 
   def initialize(@id, @book_count, @time_to_sign_up, @books_scanned_per_day)
-    # @id = id.to_i64
-    # @book_count = book_count.to_i64
-    # @time_to_sign_up = time_to_sign_up.to_i64
-    # @books_scanned_per_day = books_scanned_per_day.to_i64
-    # @max_scannable_books = (days - @time_to_sign_up - current_day) * @books_scanned_per_day
+    @weight = -1
+    @max_possible_score = -1
+    @max_scannable_books = -1
+    @books = [] of Int64
   end
 
   def add_books(lib_books, all_books)
@@ -30,16 +29,12 @@ class Library
 
   def weight!(highest_available_weighted_lib_id, days, libraries, current_day, all_books)
     @max_scannable_books = (days.to_i64 - @time_to_sign_up.to_i64 - current_day.to_i64) * @books_scanned_per_day.to_i64
-    books = @books
-    if books.is_a?(Array(Int64))
-      books = books.reject { |b| all_books[b.to_i64].zero? }.sort { |a, b| all_books[b.to_i64] <=> all_books[a.to_i64] }
-      @books = books
-      used_books = books[0..@max_scannable_books]
-      weight = (used_books.map { |book_id| all_books[book_id.to_i64] }.sum) * @books_scanned_per_day
-      @weight = weight
-      @max_possible_score = used_books.map { |book_id| all_books[book_id.to_i64] }.sum
-      id
-    end
+    @books = @books.reject { |b| all_books[b.to_i64].zero? }.sort { |a, b| all_books[b.to_i64] <=> all_books[a.to_i64] }
+    used_books = books[0..@max_scannable_books]
+    weight = (used_books.map { |book_id| all_books[book_id.to_i64] }.sum) * @books_scanned_per_day
+    @weight = weight
+    @max_possible_score = used_books.map { |book_id| all_books[book_id.to_i64] }.sum
+    id
   end
 
   def inspect
@@ -47,14 +42,8 @@ class Library
   end
 
   def lock_in_books!(all_books)
-    used_books = @books
-    if used_books.is_a?(Array(Int64))
-      used_books = used_books[0..@max_scannable_books]
-      used_books.each do |book_id|
-        all_books[book_id.to_i64] == 0
-      end
-    else
-      raise "Shouldn't happen"
+    @books[0..@max_scannable_books].each do |book_id|
+      all_books[book_id.to_i64] == 0
     end
   end
 end
@@ -110,36 +99,27 @@ end
 # end
 
 highest_available_weighted_lib_id = nil
-working_libraries = libraries
+working_libraries = libraries.dup
 libs_by_weight = {} of Int64 => Array(Library)
 while working_libraries.any?
   to_remove = [] of Int64
   working_libraries.each do |id, library|
     library_id = library.weight!(highest_available_weighted_lib_id, days, libraries, current_day, all_books)
     current_highest_weight = libraries[highest_available_weighted_lib_id].weight unless highest_available_weighted_lib_id.nil?
-    lib_weight = library.weight
-    if lib_weight.is_a?(Int64)
-      highest_available_weighted_lib_id = library_id if highest_available_weighted_lib_id.nil? || (current_highest_weight.is_a?(Int64) && (lib_weight > current_highest_weight))
-    end
-    lib_weight = library.weight
-    if lib_weight.is_a?(Int64)
-      to_remove << id unless lib_weight > 0
-    end
+    highest_available_weighted_lib_id = library_id if highest_available_weighted_lib_id.nil? || (current_highest_weight.is_a?(Int64) && (library.weight > current_highest_weight))
+    to_remove << id unless library.weight > 0 || id != highest_available_weighted_lib_id
   end
   to_remove.each do |id|
     working_libraries.delete(id)
   end
   break unless highest_available_weighted_lib_id
   library = libraries[highest_available_weighted_lib_id]
-  lib_weight = library.weight
-  if lib_weight.is_a?(Int64)
-    libs_by_weight[lib_weight] ||= [] of Library
-    libs_by_weight[lib_weight] << library
-    library.lock_in_books!(all_books)
-    current_day += library.time_to_sign_up
-    working_libraries.delete(highest_available_weighted_lib_id)
-    highest_available_weighted_lib_id = nil
-  end
+  libs_by_weight[library.weight] ||= [] of Library
+  libs_by_weight[library.weight] << library
+  library.lock_in_books!(all_books)
+  current_day += library.time_to_sign_up
+  working_libraries.delete(highest_available_weighted_lib_id)
+  highest_available_weighted_lib_id = nil
 end
 
 # libs_by_weight.sort.each do |_weight, libs|
@@ -168,10 +148,7 @@ libs_by_weight.each do |_weight, libs|
 
     used_lib_count += 1
     final_string += "#{library.id} #{max_books_scanned}\n"
-    library_books = library.books
-    if library_books.is_a?(Array(Int64))
-      final_string += "#{library_books[0..max_books_scanned - 1].join(" ")}\n"
-    end
+    final_string += "#{library.books[0..max_books_scanned - 1].join(" ")}\n"
     current_day += library.time_to_sign_up
   end
 end
